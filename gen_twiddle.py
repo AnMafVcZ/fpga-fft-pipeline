@@ -63,3 +63,12 @@ assert abs(cos_n4 - 0.0) < 0.01, f"W_256^64 cos={cos_n4}"
 assert abs(sin_n4 - (-1.0)) < 0.01, f"W_256^64 sin={sin_n4}"
 
 print("Sanity checks passed.")
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate Verilog twiddle ROM init file")
+    parser.add_argument("--n", type=int, default=64, help="FFT point count")
+    parser.add_argument("--width", type=int, default=16, help="Fixed-point width")
+    parser.add_argument("--out", default="twiddle_init.vh", help="Output file")
+    args = parser.parse_args()
+    print(f"Generating {args.n}-point twiddle factors ({args.width}-bit) -> {args.out}")
