@@ -151,3 +151,13 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def fetch_bars(symbol: str, timeframe: str = "1Min", limit: int = 1000):
+    """Fetch OHLCV bars from Alpaca and return as numpy array for FFT input."""
+    import os, numpy as np
+    key = os.environ.get("APCA_API_KEY_ID", "")
+    secret = os.environ.get("APCA_API_SECRET_KEY", "")
+    if not key or not secret:
+        raise EnvironmentError("Set APCA_API_KEY_ID and APCA_API_SECRET_KEY")
+    # returns shape (limit, 5): open, high, low, close, volume
+    return np.zeros((limit, 5))  # placeholder until live feed connected
