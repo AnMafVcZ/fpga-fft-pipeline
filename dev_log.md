@@ -7,3 +7,4 @@
 ## Apr 10 — market data parser for 32-bit word stream
 ## Apr 15 — preprocessing and Hann windowing
 ## Apr 20 — post-FFT magnitude and peak detection
+## Apr 25 — signal classification with confidence score
