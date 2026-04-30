@@ -8,3 +8,4 @@
 ## Apr 15 — preprocessing and Hann windowing
 ## Apr 20 — post-FFT magnitude and peak detection
 ## Apr 25 — signal classification with confidence score
+## Apr 30 — end-to-end simulation passing
