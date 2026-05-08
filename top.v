@@ -250,19 +250,22 @@ module top (
     );
     assign fft_m_ready = 1'b1;  // CORDIC is always ready (pipelined, no backpressure)
 
-    // Delay fft metadata by 17 cycles to align with cordic output
-    reg [1:0]  cordic_delay_ch    [0:16];
-    reg        cordic_delay_fl    [0:16];
-    reg [47:0] cordic_delay_ts    [0:16];
-    reg [3:0]  cordic_delay_scale [0:16];
+    // Delay fft metadata by 18 cycles to align with cordic output.
+    // CORDIC latency = 18 cycles: stage0 (1) + iterations 1-16 (16) + output reg (1).
+    reg [1:0]  cordic_delay_ch    [0:17];
+    reg        cordic_delay_fl    [0:17];
+    reg [47:0] cordic_delay_ts    [0:17];
+    reg [3:0]  cordic_delay_scale [0:17];
+    // Gate frame_last with fft_m_valid so stale high-after-last-bin doesn't propagate.
+    wire fft_frame_last_gated = fft_frame_last && fft_m_valid;
     integer d;
 
     always @(posedge clk_fast) begin
         cordic_delay_ch   [0] <= fft_channel;
-        cordic_delay_fl   [0] <= fft_frame_last;
+        cordic_delay_fl   [0] <= fft_frame_last_gated;
         cordic_delay_ts   [0] <= fft_timestamp;
         cordic_delay_scale[0] <= fft_scale_exp;
-        for (d = 1; d <= 16; d = d + 1) begin
+        for (d = 1; d <= 17; d = d + 1) begin
             cordic_delay_ch   [d] <= cordic_delay_ch   [d-1];
             cordic_delay_fl   [d] <= cordic_delay_fl   [d-1];
             cordic_delay_ts   [d] <= cordic_delay_ts   [d-1];
@@ -285,13 +288,13 @@ module top (
         .cfg_addr     (cfg_addr),
         .cfg_data     (cfg_data),
         .s_valid      (cordic_out_valid),
-        .s_channel    (cordic_delay_ch   [16]),
+        .s_channel    (cordic_delay_ch   [17]),
         .s_mag        (cordic_mag),
         .s_phase      (cordic_phase),
         .s_bin        (cordic_bin_tag),
-        .s_frame_last (cordic_delay_fl   [16]),
-        .s_timestamp  (cordic_delay_ts   [16]),
-        .s_scale_exp  (cordic_delay_scale[16]),
+        .s_frame_last (cordic_delay_fl   [17]),
+        .s_timestamp  (cordic_delay_ts   [17]),
+        .s_scale_exp  (cordic_delay_scale[17]),
         .m_valid      (postfft_m_valid),
         .m_ready      (postfft_m_ready),
         .m_channel    (postfft_channel),

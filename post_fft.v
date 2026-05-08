@@ -118,13 +118,15 @@ module post_fft (
                 reg [31:0] power_db_r;
                 reg [7:0]  pow_idx;
 
-                // Centroid: num/den approximated as shift (simplified for RTL)
-                // Full division would use Newton-Raphson; here we use a log2-based approx
-                centroid_r = (cent_den[pend_ch][63:32] != 0) ?
-                             (cent_num[pend_ch] >> 32) : 32'sd0;
+                // Centroid: num/den integer division (synthesizable via Newton-Raphson;
+                // for simulation Verilog / operator is sufficient).
+                centroid_r = (cent_den[pend_ch] != 0) ?
+                             (cent_num[pend_ch] / cent_den[pend_ch]) : 32'sd0;
 
-                // Power dB: use log2 LUT on upper 8 bits of total_pow
-                pow_idx    = total_pow[pend_ch][39:32];
+                // Power dB: use bits [23:16] of total_pow as LUT index.
+                // [39:32] would always be 0 for typical signal levels (~2^20),
+                // yielding power_db=0 and a dead signal_logic condition.
+                pow_idx    = total_pow[pend_ch][23:16];
                 power_db_r = {16'd0, log2_lut[pow_idx]};
                 // Scale by 10/log2(10) ≈ 10/3.322 ≈ 3.01 ≈ Q8.8 value 770
                 power_db_r = (power_db_r * 32'd770) >> 8;

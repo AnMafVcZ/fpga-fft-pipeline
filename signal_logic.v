@@ -44,7 +44,7 @@ module signal_logic (
             r_mag_thresh  [ch] = 32'sd100;  // default: fire if dom_mag > 100 Q24.8
             r_centroid_lo [ch] = 32'sd0;
             r_centroid_hi [ch] = 32'h7FFFFFFF;
-            r_power_thresh[ch] = 32'sd0;
+            r_power_thresh[ch] = -32'sd1;  // -1: any non-negative power_db passes
             r_phase_thresh[ch] = 32'sd0;
             r_conf_scale  [ch] = 8'd1;
         end

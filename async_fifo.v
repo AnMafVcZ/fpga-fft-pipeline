@@ -58,25 +58,23 @@ module async_fifo #(
                                        rd_gray_sync2_wr[ADDR_WIDTH-2:0]});
 
     // ---- Read domain ----
-    reg [DATA_WIDTH-1:0] rd_data_reg;
+    // Combinatorial (show-ahead) output: rd_data always reflects current head.
+    // rd_empty goes low as soon as data is available; rd_en just advances the pointer.
 
     always @(posedge rd_clk) begin
         if (rd_rst) begin
             rd_ptr_bin       <= 0;
             wr_gray_sync1_rd <= 0;
             wr_gray_sync2_rd <= 0;
-            rd_data_reg      <= 0;
         end else begin
             wr_gray_sync1_rd <= wr_ptr_gray;
             wr_gray_sync2_rd <= wr_gray_sync1_rd;
-            if (rd_en && !rd_empty) begin
-                rd_data_reg <= mem[rd_ptr_bin[ADDR_WIDTH-1:0]];
-                rd_ptr_bin  <= rd_ptr_bin + 1;
-            end
+            if (rd_en && !rd_empty)
+                rd_ptr_bin <= rd_ptr_bin + 1;
         end
     end
 
     assign rd_empty = (rd_ptr_gray == wr_gray_sync2_rd);
-    assign rd_data  = rd_data_reg;
+    assign rd_data  = mem[rd_ptr_bin[ADDR_WIDTH-1:0]];
 
 endmodule

@@ -147,6 +147,7 @@ module fft_core (
     reg [3:0]  stage;
     reg [11:0] bfly_cnt;
     reg        wr_pending;
+    reg        tw_primed;   // set after 1-cycle twiddle prime at start of each stage
     reg [11:0] wr_p_addr, wr_q_addr;
     reg [11:0] out_cnt;
 
@@ -158,6 +159,7 @@ module fft_core (
             bfly_in_valid <= 1'b0;
             trom_rd_en    <= 1'b0;
             wr_pending    <= 1'b0;
+            tw_primed     <= 1'b0;
             bank          <= 1'b0;
         end else begin
 
@@ -194,11 +196,13 @@ module fft_core (
                         bram_a[bit_rev(load_cnt[11:0], active_log2n)] <= {s_im, s_re};
                         load_cnt <= load_cnt + 1;
                         if (s_frame_last) begin
+                            $display("[fft_core] t=%0t LOAD done, load_cnt=%0d → COMPUTE", $time, load_cnt+1);
                             fsm_state     <= FSM_COMPUTE;
                             s_ready       <= 1'b0;
                             stage         <= 4'd0;
                             bfly_cnt      <= 12'd0;
                             bfly_in_valid <= 1'b0;
+                            tw_primed     <= 1'b0;
                         end
                     end
                 end
@@ -206,11 +210,20 @@ module fft_core (
                 // ---- COMPUTE: sequence butterfly stages ----
                 FSM_COMPUTE: begin
                     if (!wr_pending) begin
-                        if (bfly_cnt < active_n[12:1]) begin   // bfly_cnt < N/2
+                        if (!tw_primed) begin
+                            // Bug fix: prime the twiddle ROM one cycle before the first
+                            // butterfly of every stage. The ROM has 1-cycle latency; without
+                            // this, butterfly 0 of every stage reads trom_cos=0 (reset value).
+                            // All W^0 factors are at address = twiddle_base regardless of stage.
+                            trom_addr  <= twiddle_base(active_n_sel);
+                            trom_rd_en <= 1'b1;
+                            tw_primed  <= 1'b1;
+                        end else if (bfly_cnt < active_n[12:1]) begin   // bfly_cnt < N/2
                             begin
                                 reg [11:0] stride_r, offset_r, a_addr_r, b_addr_r;
                                 reg [12:0] a_addr13;
-                                reg [10:0] tw_idx_r;
+                                reg [11:0] next_offset_r;
+                                reg [10:0] next_tw_idx_r;
 
                                 // stride = N / 2^(stage+1)
                                 stride_r = active_n[12:1] >> stage;
@@ -224,9 +237,6 @@ module fft_core (
                                 a_addr_r = a_addr13[11:0];
                                 b_addr_r = a_addr_r + stride_r;
 
-                                // twiddle: k<<stage + base
-                                tw_idx_r = (offset_r[9:0] << stage) + twiddle_base(active_n_sel);
-
                                 // Read from current read bank
                                 bfly_a_re <= $signed(bank ? bram_b[a_addr_r][31:0]
                                                           : bram_a[a_addr_r][31:0]);
@@ -237,11 +247,20 @@ module fft_core (
                                 bfly_b_im <= $signed(bank ? bram_b[b_addr_r][63:32]
                                                           : bram_a[b_addr_r][63:32]);
 
-                                // Twiddle ROM: issue read; use previous cycle's result for bfly
-                                trom_addr  <= tw_idx_r;
+                                // trom_cos/sin now holds the correct twiddle for this butterfly
+                                // (primed before bfly_cnt=0; subsequent butterflies read the
+                                // address issued during the previous butterfly's cycle below).
+                                bfly_w_re <= trom_cos;
+                                bfly_w_im <= trom_sin;
+
+                                // Issue twiddle read for the NEXT butterfly (bfly_cnt+1).
+                                // Bug fix: previously issued current butterfly's address here,
+                                // which meant every butterfly used the previous one's twiddle.
+                                next_offset_r = (bfly_cnt[11:0] + 12'd1) & (stride_r - 12'd1);
+                                next_tw_idx_r = (next_offset_r[9:0] << stage)
+                                                + twiddle_base(active_n_sel);
+                                trom_addr  <= next_tw_idx_r;
                                 trom_rd_en <= 1'b1;
-                                bfly_w_re  <= trom_cos;
-                                bfly_w_im  <= trom_sin;
 
                                 bfly_tag      <= a_addr_r;
                                 bfly_in_valid <= 1'b1;
@@ -254,6 +273,7 @@ module fft_core (
                             // Stage complete: toggle bank, advance or finish
                             bfly_in_valid <= 1'b0;
                             trom_rd_en    <= 1'b0;
+                            tw_primed     <= 1'b0;   // reset so next stage primes again
                             scale_exp_r   <= scale_exp_r + 1;
                             bank          <= !bank;
                             if (stage == active_log2n - 1) begin
@@ -264,6 +284,11 @@ module fft_core (
                                 bfly_cnt <= 12'd0;
                             end
                         end
+                    end else begin
+                        // Bug fix: de-assert bfly_in_valid after 1 cycle while waiting for
+                        // the 4-stage butterfly pipeline. Without this, in_valid stays high
+                        // for 4 cycles, generating 3 extra outputs that corrupt BRAM.
+                        bfly_in_valid <= 1'b0;
                     end
                 end
 

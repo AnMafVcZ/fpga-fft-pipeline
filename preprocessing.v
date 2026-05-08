@@ -117,28 +117,28 @@ module preprocessing (
         end
     end
 
-    // Round-robin output arbiter
+    // Round-robin output arbiter — blocking 'found' flag ensures first match wins
     always @(posedge clk) begin
         if (rst) begin
             m_valid <= 1'b0;
             arb_ch  <= 2'd0;
         end else begin
             if (!m_valid || m_ready) begin
-                m_valid <= 1'b0;
-                // Scan channels round-robin
                 begin : arb_scan
                     integer j;
+                    reg found;
+                    found = 1'b0;
+                    m_valid <= 1'b0;
                     for (j = 0; j < 4; j = j + 1) begin
-                        if (!m_valid) begin
-                            if (out_pending[(arb_ch + j[1:0])]) begin
-                                m_valid   <= 1'b1;
-                                m_channel <= arb_ch + j[1:0];
-                                m_sample  <= out_sample[arb_ch + j[1:0]];
-                                m_timestamp <= out_ts[arb_ch + j[1:0]];
-                                m_gap     <= out_gap[arb_ch + j[1:0]];
-                                out_pending[arb_ch + j[1:0]] <= 1'b0;
-                                arb_ch <= arb_ch + j[1:0] + 1;
-                            end
+                        if (!found && out_pending[(arb_ch + j[1:0])]) begin
+                            found = 1'b1;
+                            m_valid     <= 1'b1;
+                            m_channel   <= arb_ch + j[1:0];
+                            m_sample    <= out_sample  [arb_ch + j[1:0]];
+                            m_timestamp <= out_ts      [arb_ch + j[1:0]];
+                            m_gap       <= out_gap     [arb_ch + j[1:0]];
+                            out_pending [arb_ch + j[1:0]] <= 1'b0;
+                            arb_ch      <= arb_ch + j[1:0] + 2'd1;
                         end
                     end
                 end

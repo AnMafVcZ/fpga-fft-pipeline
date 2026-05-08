@@ -90,6 +90,25 @@ int main(int argc, char** argv) {
             printf("[sim] Reset released at t=%llu\n", (unsigned long long)sim_time);
         }
 
+        // Config writes: preprocessing sample_rate[ch0]=4 (fast), ch1-3=0xFFFF (disabled).
+        // cfg_addr[7:4]=4'h0 (preprocessing), [3:2]=ch, [1:0]=reg0 (sample_rate).
+        if (sim_time == 22) {
+            SIG(cfg_valid) = 1;
+            SIG(cfg_addr)  = 0x00;   // ch0 sample_rate
+            SIG(cfg_data)  = 4;
+        } else if (sim_time == 24) {
+            SIG(cfg_addr)  = 0x04;   // ch1 sample_rate → max (disabled)
+            SIG(cfg_data)  = 0xFFFF;
+        } else if (sim_time == 26) {
+            SIG(cfg_addr)  = 0x08;   // ch2 sample_rate → max
+            SIG(cfg_data)  = 0xFFFF;
+        } else if (sim_time == 28) {
+            SIG(cfg_addr)  = 0x0C;   // ch3 sample_rate → max
+            SIG(cfg_data)  = 0xFFFF;
+        } else if (sim_time == 30) {
+            SIG(cfg_valid) = 0;
+        }
+
         // Toggle clocks
         if (sim_time % CLK_FAST_HALF == 0)
             SIG(clk_fast) = !SIG(clk_fast);
